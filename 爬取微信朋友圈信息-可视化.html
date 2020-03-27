@@ -1,0 +1,349 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>爬取微信朋友圈信息-可视化</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__html"><p>自学 pyecharts 练手，画一下基本的柱状图和地图；用 wordcloud 生成词云；用 itchat 爬取微信信息；后面的代码就是基本的朋友圈数据信息整理</p>
+<hr>
+<h2><a id="_4"></a>导入所需包</h2>
+<pre><code class="prism language-python"><span class="token keyword">import</span> pandas <span class="token keyword">as</span> pd
+<span class="token keyword">import</span> itchat
+<span class="token keyword">from</span> pyecharts <span class="token keyword">import</span> Pie<span class="token punctuation">,</span> Map<span class="token punctuation">,</span> Bar
+<span class="token keyword">from</span> pyecharts_snapshot<span class="token punctuation">.</span>main <span class="token keyword">import</span> make_a_snapshot
+<span class="token keyword">import</span> jieba
+<span class="token keyword">from</span> wordcloud <span class="token keyword">import</span> WordCloud<span class="token punctuation">,</span> STOPWORDS
+<span class="token keyword">import</span> numpy
+<span class="token keyword">import</span> os
+<span class="token keyword">from</span> IPython<span class="token punctuation">.</span>display <span class="token keyword">import</span> IFrame
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#登入自己的微信</span>
+itchat<span class="token punctuation">.</span>auto_login<span class="token punctuation">(</span>hotReload<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+<span class="token comment">#爬取自己好友相关信息， 返回一个json文件</span>
+friends <span class="token operator">=</span> itchat<span class="token punctuation">.</span>get_friends<span class="token punctuation">(</span>update<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">:</span><span class="token punctuation">]</span>
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#给微信助手发消息</span>
+itchat<span class="token punctuation">.</span>send<span class="token punctuation">(</span><span class="token string">'Hello, filehelper'</span><span class="token punctuation">,</span> toUserName<span class="token operator">=</span><span class="token string">'filehelper'</span><span class="token punctuation">)</span>
+</code></pre>
+<pre><code>&lt;ItchatReturnValue: {'BaseResponse': {'Ret': 0, 'ErrMsg': '请求成功', 'RawMsg': '请求成功'}, 'MsgID': '1578344968903562376', 'LocalID': '15530624974040'}&gt;
+</code></pre>
+<h2><a id="_35"></a>爬取微信信息</h2>
+<pre><code class="prism language-python"><span class="token comment">#查看自己的信息，friends[0]表示自己，朋友信息要从friends[1]开始</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>friends<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token builtin">len</span><span class="token punctuation">(</span>friends<span class="token punctuation">)</span>
+</code></pre>
+<p>打印数据比较多就不放在这里了<br>
+观察了一下返回的数据结构，发现”性别“是存放在一个字典里面的，key是”Sex“，男性值为1，女性为2，其他是不明性别的</p>
+<h2><a id="_45"></a>微信好友性别分布</h2>
+<pre><code class="prism language-python"><span class="token comment">#性别计数初始化</span>
+male <span class="token operator">=</span> female <span class="token operator">=</span> other <span class="token operator">=</span> <span class="token number">0</span>
+<span class="token comment">#建立循环，计算男女个数</span>
+<span class="token keyword">for</span> i <span class="token keyword">in</span> friends<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">:</span><span class="token punctuation">]</span><span class="token punctuation">:</span>
+    sex <span class="token operator">=</span> i<span class="token punctuation">[</span><span class="token string">"Sex"</span><span class="token punctuation">]</span>
+    <span class="token keyword">if</span> sex <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">:</span>
+        male <span class="token operator">+=</span> <span class="token number">1</span>
+    <span class="token keyword">elif</span> sex <span class="token operator">==</span> <span class="token number">2</span><span class="token punctuation">:</span>
+        female <span class="token operator">+=</span> <span class="token number">1</span>
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        other <span class="token operator">+=</span> <span class="token number">1</span>
+
+<span class="token comment">#计算朋友总数</span>
+total <span class="token operator">=</span> <span class="token builtin">len</span><span class="token punctuation">(</span>friends<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">:</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token comment">#打印朋友个数</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token string">"朋友总数：%.u"</span> <span class="token operator">%</span> total<span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">"\n"</span> <span class="token operator">+</span> 
+     <span class="token punctuation">(</span><span class="token string">"女性人数：%.u 占比:%.2f%%"</span> <span class="token operator">%</span> <span class="token punctuation">(</span>female<span class="token punctuation">,</span><span class="token builtin">float</span><span class="token punctuation">(</span>female<span class="token punctuation">)</span><span class="token operator">/</span>total<span class="token operator">*</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">"\n"</span> <span class="token operator">+</span> 
+     <span class="token punctuation">(</span><span class="token string">"男性人数：%.u 占比:%.2f%%"</span> <span class="token operator">%</span> <span class="token punctuation">(</span>male<span class="token punctuation">,</span><span class="token builtin">float</span><span class="token punctuation">(</span>male<span class="token punctuation">)</span><span class="token operator">/</span>total<span class="token operator">*</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">"\n"</span> <span class="token operator">+</span> 
+     <span class="token punctuation">(</span><span class="token string">"其他性别人数：%.u 占比:%.2f%%"</span> <span class="token operator">%</span> <span class="token punctuation">(</span>other<span class="token punctuation">,</span><span class="token builtin">float</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token operator">/</span>total<span class="token operator">*</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre>
+<pre><code>朋友总数：337
+女性人数：182 占比:54.01%
+男性人数：130 占比:38.58%
+其他性别人数：25 占比:7.42%
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#绘制性别饼图</span>
+sex<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">'male'</span><span class="token punctuation">,</span><span class="token string">'female'</span><span class="token punctuation">,</span><span class="token string">'other'</span><span class="token punctuation">]</span>
+sex_n<span class="token operator">=</span><span class="token punctuation">[</span>male<span class="token punctuation">,</span>female<span class="token punctuation">,</span>other<span class="token punctuation">]</span>
+pie<span class="token operator">=</span>Pie<span class="token punctuation">(</span><span class="token string">"性别比例"</span><span class="token punctuation">)</span>
+pie<span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">''</span><span class="token punctuation">,</span>sex<span class="token punctuation">,</span>sex_n<span class="token punctuation">,</span>is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+pie<span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"Sex.html"</span><span class="token punctuation">)</span>  <span class="token comment">#默认将会在根目录下生成一个 render.html 的文件，支持 path 参数，设置文件保存位置，如 render(r"e:\my_first_chart.html")，文件用浏览器打开。</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">'Sex.html'</span><span class="token punctuation">,</span> <span class="token string">'Sex.gif'</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/2019032021374432.gif" alt="性别比例"><br>
+（本来这里的图片应该是HTML格式，是可交互的，但是导入之后总是不显示，只能转化为gif格式再导入了，等学会怎么调整了再放上上来）</p>
+<p>由上图，女性好友过半，但男女比例并不悬殊。</p>
+<pre><code class="prism language-python"><span class="token keyword">print</span><span class="token punctuation">(</span>male<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>130  #有130个为男性
+</code></pre>
+<h2><a id="_97"></a>微信好友城市分布</h2>
+<pre><code class="prism language-python"><span class="token comment">#定义一个函数，爬取各个变量</span>
+<span class="token keyword">def</span> <span class="token function">get_var</span><span class="token punctuation">(</span>var<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    variable <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+    <span class="token keyword">for</span> i <span class="token keyword">in</span> friends<span class="token punctuation">:</span>
+        value <span class="token operator">=</span> i<span class="token punctuation">[</span>var<span class="token punctuation">]</span>
+        variable<span class="token punctuation">.</span>append<span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+    <span class="token keyword">return</span><span class="token punctuation">(</span>variable<span class="token punctuation">)</span>
+
+<span class="token comment">#调用函数得到各个变量，并保存到CSV文件</span>
+NickName <span class="token operator">=</span> get_var<span class="token punctuation">(</span><span class="token string">"NickName"</span><span class="token punctuation">)</span>
+Sex <span class="token operator">=</span> get_var<span class="token punctuation">(</span><span class="token string">"Sex"</span><span class="token punctuation">)</span>
+City <span class="token operator">=</span> get_var<span class="token punctuation">(</span><span class="token string">"City"</span><span class="token punctuation">)</span>
+Province <span class="token operator">=</span> get_var<span class="token punctuation">(</span><span class="token string">"Province"</span><span class="token punctuation">)</span>
+Signature <span class="token operator">=</span> get_var<span class="token punctuation">(</span><span class="token string">"Signature"</span><span class="token punctuation">)</span>
+
+<span class="token keyword">from</span> pandas <span class="token keyword">import</span> DataFrame
+data <span class="token operator">=</span> <span class="token punctuation">{</span><span class="token string">'NickName'</span><span class="token punctuation">:</span>NickName<span class="token punctuation">,</span><span class="token string">'Sex'</span><span class="token punctuation">:</span>Sex<span class="token punctuation">,</span><span class="token string">'City'</span><span class="token punctuation">:</span>City<span class="token punctuation">,</span><span class="token string">'Province'</span><span class="token punctuation">:</span>Province<span class="token punctuation">,</span><span class="token string">'Signature'</span><span class="token punctuation">:</span>Signature<span class="token punctuation">}</span>
+frame <span class="token operator">=</span> DataFrame<span class="token punctuation">(</span>data<span class="token punctuation">)</span>
+frame<span class="token punctuation">.</span>to_csv<span class="token punctuation">(</span><span class="token string">'data.csv'</span><span class="token punctuation">,</span>encoding <span class="token operator">=</span> <span class="token string">"utf-8"</span><span class="token punctuation">,</span>index<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+        
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#frame.head()</span>
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#查看城市</span>
+<span class="token keyword">import</span> numpy <span class="token keyword">as</span> np
+city_list <span class="token operator">=</span> np<span class="token punctuation">.</span>unique<span class="token punctuation">(</span>frame<span class="token punctuation">[</span><span class="token string">'City'</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"一共包含 {} 个城市，分别是:\n{}"</span><span class="token punctuation">.</span><span class="token builtin">format</span><span class="token punctuation">(</span><span class="token builtin">len</span><span class="token punctuation">(</span>city_list<span class="token punctuation">)</span><span class="token punctuation">,</span>city_list<span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre>
+<pre><code>一共包含 80 个城市，分别是:
+['' 'Columbia County' 'Geelong' 'Gold Coast' 'Kyoto' '丰台' '临汾' '临沂' '佛山'
+ '保定' '信阳' '内江' '南京' '南开' '合肥' '吕梁' '周口' '咸阳' '唐山' '嘉兴' '大兴' '大同' '大堂区'
+ '大连' '娄底' '宁波' '安阳' '定西' '岳阳' '巢湖' '巴音郭楞' '常德' '广州' '廊坊' '徐汇' '德国' '承德'
+ '拉萨' '昆明' '朔州' '朝阳' '株洲' '榆林' '武汉' '沈阳' '沧州' '洛阳' '浦东新区' '海淀' '深圳' '温州'
+ '湖州' '湘潭' '湘西' '濮阳' '石家庄' '石景山' '福州' '绍兴' '苏州' '茂名' '蚌埠' '衡水' '襄阳' '西城'
+ '西安' '许昌' '通州' '邢台' '邯郸' '邵阳' '郑州' '郴州' '长寿' '长春' '长沙' '静安' '鹤壁' '黄山'
+ '黑河']
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#将城市分布信息汇总，创建字典sum_city</span>
+<span class="token keyword">import</span> pyecharts
+City <span class="token operator">=</span> <span class="token punctuation">[</span>city <span class="token keyword">for</span> city <span class="token keyword">in</span> City <span class="token keyword">if</span> <span class="token builtin">str</span><span class="token punctuation">(</span>city<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token string">''</span><span class="token punctuation">]</span>
+new_list1 <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token keyword">for</span> city <span class="token keyword">in</span> City<span class="token punctuation">:</span>
+    new_list1<span class="token punctuation">.</span>append<span class="token punctuation">(</span>city<span class="token punctuation">)</span>
+    
+<span class="token keyword">from</span> collections <span class="token keyword">import</span> Counter
+sum_city <span class="token operator">=</span> Counter<span class="token punctuation">(</span>new_list1<span class="token punctuation">)</span>        
+x0<span class="token punctuation">,</span> y0 <span class="token operator">=</span> pyecharts<span class="token punctuation">.</span>base<span class="token punctuation">.</span>Base<span class="token punctuation">.</span>cast<span class="token punctuation">(</span>sum_city<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>x0<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>y0<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>sum_city<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>['Columbia County', 'Geelong', 'Gold Coast', 'Kyoto', '丰台', '临汾', '临沂', '佛山', '保定', '信阳', '内江', '南京', '南开', '合肥', '吕梁', '周口', '咸阳', '唐山', '嘉兴', '大兴', '大同', '大堂区', '大连', '娄底', '宁波', '安阳', '定西', '岳阳', '巢湖', '巴音郭楞', '常德', '广州', '廊坊', '徐汇', '德国', '承德', '拉萨', '昆明', '朔州', '朝阳', '株洲', '榆林', '武汉', '沈阳', '沧州', '洛阳', '浦东新区', '海淀', '深圳', '温州', '湖州', '湘潭', '湘西', '濮阳', '石家庄', '石景山', '福州', '绍兴', '苏州', '茂名', '蚌埠', '衡水', '襄阳', '西城', '西安', '许昌', '通州', '邢台', '邯郸', '邵阳', '郑州', '郴州', '长寿', '长春', '长沙', '静安', '鹤壁', '黄山', '黑河']
+[1, 1, 1, 1, 2, 1, 1, 1, 22, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 2, 1, 1, 1, 1, 3, 3, 1, 1, 1, 2, 1, 1, 1, 4, 1, 1, 1, 1, 6, 2, 2, 9, 5, 1, 1, 22, 2, 1, 6, 1, 2, 1, 3, 1, 1, 2, 1, 1, 1, 1, 1, 4, 6, 6, 37, 1, 1, 1, 11, 1, 1, 1, 1]
+Counter({'郑州': 37, '保定': 22, '湘潭': 22, '长沙': 11, '海淀': 9, '沧州': 6, '邯郸': 6, '石家庄': 6, '邵阳': 6, '深圳': 5, '邢台': 4, '朝阳': 4, '常德': 3, '广州': 3, '苏州': 3, '湘西': 2, '洛阳': 2, '大连': 2, '丰台': 2, '安阳': 2, '承德': 2, '娄底': 2, '衡水': 2, '福州': 2, '浦东新区': 2, '朔州': 1, '信阳': 1, '绍兴': 1, '石景山': 1, '佛山': 1, '临汾': 1, '长春': 1, '宁波': 1, '大兴': 1, '巢湖': 1, '嘉兴': 1, '沈阳': 1, '濮阳': 1, '大同': 1, 'Geelong': 1, '通州': 1, '许昌': 1, '黑河': 1, '咸阳': 1, '大堂区': 1, '株洲': 1, '内江': 1, '廊坊': 1, '静安': 1, '武汉': 1, '西安': 1, '南开': 1, '徐汇': 1, '唐山': 1, 'Gold Coast': 1, '拉萨': 1, '南京': 1, '巴音郭楞': 1, '蚌埠': 1, '温州': 1, 'Columbia County': 1, '榆林': 1, 'Kyoto': 1, '吕梁': 1, '长寿': 1, '茂名': 1, '周口': 1, '湖州': 1, '合肥': 1, '襄阳': 1, '黄山': 1, '鹤壁': 1, '昆明': 1, '西城': 1, '郴州': 1, '临沂': 1, '德国': 1, '定西': 1, '岳阳': 1})
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment"># 城市分布柱状图</span>
+<span class="token keyword">from</span> pyecharts_snapshot<span class="token punctuation">.</span>main <span class="token keyword">import</span> make_a_snapshot
+bar <span class="token operator">=</span> Bar<span class="token punctuation">(</span><span class="token string">"Bar chart"</span><span class="token punctuation">,</span> <span class="token string">"Citys distribution"</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"city"</span><span class="token punctuation">,</span> x0<span class="token punctuation">,</span> y0<span class="token punctuation">,</span> mark_line<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"average"</span><span class="token punctuation">]</span><span class="token punctuation">,</span> mark_point<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"max"</span><span class="token punctuation">,</span> <span class="token string">"min"</span><span class="token punctuation">]</span><span class="token punctuation">,</span>is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"City.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">'City.html'</span><span class="token punctuation">,</span> <span class="token string">'City.gif'</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320214422179.gif" alt="城市分布柱状图"></p>
+<pre><code class="prism language-python"><span class="token comment">#选出分布超过3人的城市,并画出柱状图</span>
+dictfilt <span class="token operator">=</span> <span class="token keyword">lambda</span> x<span class="token punctuation">,</span> y<span class="token punctuation">:</span> <span class="token builtin">dict</span><span class="token punctuation">(</span><span class="token punctuation">[</span> <span class="token punctuation">(</span>i<span class="token punctuation">,</span>x<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token keyword">for</span> i <span class="token keyword">in</span> x <span class="token keyword">if</span> i <span class="token keyword">in</span> <span class="token builtin">set</span><span class="token punctuation">(</span>y<span class="token punctuation">)</span> <span class="token punctuation">]</span><span class="token punctuation">)</span>
+wanted_keys <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token string">"郑州"</span><span class="token punctuation">,</span><span class="token string">"保定"</span><span class="token punctuation">,</span><span class="token string">'湘潭'</span><span class="token punctuation">,</span><span class="token string">'长沙'</span><span class="token punctuation">,</span><span class="token string">'海淀'</span><span class="token punctuation">,</span><span class="token string">'邵阳'</span><span class="token punctuation">,</span><span class="token string">'邯郸'</span><span class="token punctuation">,</span><span class="token string">'沧州'</span><span class="token punctuation">,</span><span class="token string">'深圳'</span><span class="token punctuation">,</span><span class="token string">'邢台'</span><span class="token punctuation">,</span><span class="token string">'朝阳'</span><span class="token punctuation">,</span><span class="token string">'石家庄'</span><span class="token punctuation">)</span>
+new_city <span class="token operator">=</span> dictfilt<span class="token punctuation">(</span>sum_city<span class="token punctuation">,</span> wanted_keys<span class="token punctuation">)</span>
+x1<span class="token punctuation">,</span> y1 <span class="token operator">=</span> pyecharts<span class="token punctuation">.</span>base<span class="token punctuation">.</span>Base<span class="token punctuation">.</span>cast<span class="token punctuation">(</span>new_city<span class="token punctuation">)</span>
+
+bar <span class="token operator">=</span> Bar<span class="token punctuation">(</span><span class="token string">"Bar chart"</span><span class="token punctuation">,</span> <span class="token string">"Citys of more than three people"</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"city"</span><span class="token punctuation">,</span> x1<span class="token punctuation">,</span> y1<span class="token punctuation">,</span> mark_line<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"average"</span><span class="token punctuation">]</span><span class="token punctuation">,</span> mark_point<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"max"</span><span class="token punctuation">,</span> <span class="token string">"min"</span><span class="token punctuation">]</span><span class="token punctuation">,</span>is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"City2.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">'City2.html'</span><span class="token punctuation">,</span> <span class="token string">'City2.gif'</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320214502836.gif" alt="分布超过3人的城市"></p>
+<p>由图可知，郑州、保定、湘潭三地的人数最多，这也与笔者在这三地呆过较长时间的情况相符</p>
+<pre><code class="prism language-python"><span class="token comment">#分别选出河北、湖南的好友</span>
+hb_list <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+hun_list <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+other_list <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token keyword">for</span> i <span class="token keyword">in</span> friends<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">:</span><span class="token punctuation">]</span><span class="token punctuation">:</span>
+    city <span class="token operator">=</span> i<span class="token punctuation">[</span><span class="token string">"City"</span><span class="token punctuation">]</span>
+    province <span class="token operator">=</span> i<span class="token punctuation">[</span><span class="token string">"Province"</span><span class="token punctuation">]</span>
+    <span class="token keyword">if</span> province <span class="token operator">==</span> <span class="token string">'河北'</span><span class="token punctuation">:</span>
+        hb_list<span class="token punctuation">.</span>append<span class="token punctuation">(</span>city<span class="token punctuation">)</span>
+    <span class="token keyword">elif</span> province <span class="token operator">==</span> <span class="token string">'湖南'</span><span class="token punctuation">:</span>
+        hun_list<span class="token punctuation">.</span>append<span class="token punctuation">(</span>city<span class="token punctuation">)</span>
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        other_list<span class="token punctuation">.</span>append<span class="token punctuation">(</span>city<span class="token punctuation">)</span>
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#将河北省的城市列表放入字典sum_hb，并将key和value分别放入两个列表</span>
+sum_hb <span class="token operator">=</span> Counter<span class="token punctuation">(</span>hb_list<span class="token punctuation">)</span>
+hb_x<span class="token punctuation">,</span> hb_y  <span class="token operator">=</span> pyecharts<span class="token punctuation">.</span>base<span class="token punctuation">.</span>Base<span class="token punctuation">.</span>cast<span class="token punctuation">(</span>sum_hb<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>sum_hb<span class="token punctuation">,</span> hb_x<span class="token punctuation">,</span> hb_y<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>Counter({'保定': 22, '沧州': 6, '邯郸': 6, '石家庄': 6, '邢台': 4, '承德': 2, '衡水': 2, '廊坊': 1, '唐山': 1}) ['保定', '唐山', '廊坊', '承德', '沧州', '石家庄', '衡水', '邢台', '邯郸'] [22, 1, 1, 2, 6, 6, 2, 4, 6]
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#在hb_x中的每个元素后添加“市”</span>
+s <span class="token operator">=</span> <span class="token string">'市'</span>
+<span class="token keyword">for</span> i <span class="token keyword">in</span> <span class="token builtin">range</span><span class="token punctuation">(</span><span class="token builtin">len</span><span class="token punctuation">(</span>hb_x<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    hb_x<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span>  hb_x<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">+</span> s
+hbs_x <span class="token operator">=</span> hb_x
+<span class="token keyword">print</span><span class="token punctuation">(</span>hbs_x<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>['保定市', '唐山市', '廊坊市', '承德市', '沧州市', '石家庄市', '衡水市', '邢台市', '邯郸市']
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#朋友圈河北省城市分布地图</span>
+<span class="token keyword">from</span> pyecharts_snapshot<span class="token punctuation">.</span>main <span class="token keyword">import</span> make_a_snapshot
+
+map1 <span class="token operator">=</span> Map<span class="token punctuation">(</span><span class="token string">"河北省城市分布"</span><span class="token punctuation">,</span><span class="token string">"河北"</span><span class="token punctuation">,</span> width<span class="token operator">=</span><span class="token number">1200</span><span class="token punctuation">,</span> height<span class="token operator">=</span><span class="token number">600</span><span class="token punctuation">)</span>
+map1<span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"河北省"</span><span class="token punctuation">,</span> hbs_x<span class="token punctuation">,</span> hb_y<span class="token punctuation">,</span>maptype<span class="token operator">=</span><span class="token string">'河北'</span><span class="token punctuation">,</span> is_visualmap<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> visual_text_color<span class="token operator">=</span><span class="token string">'#000'</span><span class="token punctuation">)</span>
+map1<span class="token punctuation">.</span>show_config<span class="token punctuation">(</span><span class="token punctuation">)</span>
+map1<span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"hebei.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">'hebei.html'</span><span class="token punctuation">,</span><span class="token string">'hebei.gif'</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320214619871.gif" alt="河北省城市分布"></p>
+<pre><code class="prism language-python"><span class="token comment">#IFrame('http://localhost:8888/view/wechat/%E6%B2%B3%E5%8C%97.html', width='100%', height=600)        </span>
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#将河北省的城市列表放入字典sum_hun，并将key和value分别放入两个列表</span>
+sum_hun <span class="token operator">=</span> Counter<span class="token punctuation">(</span>hun_list<span class="token punctuation">)</span>
+hun_x<span class="token punctuation">,</span> hun_y  <span class="token operator">=</span> pyecharts<span class="token punctuation">.</span>base<span class="token punctuation">.</span>Base<span class="token punctuation">.</span>cast<span class="token punctuation">(</span>sum_hun<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>sum_hun<span class="token punctuation">,</span> hun_x<span class="token punctuation">,</span> hun_y<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>Counter({'湘潭': 22, '长沙': 11, '邵阳': 6, '常德': 3, '湘西': 2, '娄底': 2, '株洲': 1, '郴州': 1, '岳阳': 1}) ['娄底', '岳阳', '常德', '株洲', '湘潭', '湘西', '邵阳', '郴州', '长沙'] [2, 1, 3, 1, 22, 2, 6, 1, 11]
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#在hb_x中的每个元素后添加“市”</span>
+s <span class="token operator">=</span> <span class="token string">'市'</span>
+<span class="token keyword">for</span> i <span class="token keyword">in</span> <span class="token builtin">range</span><span class="token punctuation">(</span><span class="token builtin">len</span><span class="token punctuation">(</span>hun_x<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    hun_x<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span>  hun_x<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">+</span> s
+huns_x <span class="token operator">=</span> hun_x
+<span class="token keyword">print</span><span class="token punctuation">(</span>huns_x<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>['娄底市', '岳阳市', '常德市', '株洲市', '湘潭市', '湘西市', '邵阳市', '郴州市', '长沙市']
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment">#朋友圈湖南省城市分布地图</span>
+<span class="token builtin">map</span> <span class="token operator">=</span> Map<span class="token punctuation">(</span><span class="token string">"湖南省城市分布"</span><span class="token punctuation">,</span> width<span class="token operator">=</span><span class="token number">1200</span><span class="token punctuation">,</span> height<span class="token operator">=</span><span class="token number">600</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"湖南省"</span><span class="token punctuation">,</span> huns_x<span class="token punctuation">,</span> hun_y<span class="token punctuation">,</span> maptype<span class="token operator">=</span><span class="token string">'湖南'</span><span class="token punctuation">,</span> is_visualmap<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> visual_text_color<span class="token operator">=</span><span class="token string">'#000'</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>show_config<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"hunan.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">'hunan.html'</span><span class="token punctuation">,</span><span class="token string">'hunan.gif'</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/2019032021471334.gif" alt="湖南省城市分布图"></p>
+<h2><a id="_290"></a>微信好友省份分布</h2>
+<pre><code class="prism language-python"><span class="token comment">#查看省份</span>
+prov_list <span class="token operator">=</span> np<span class="token punctuation">.</span>unique<span class="token punctuation">(</span>frame<span class="token punctuation">[</span><span class="token string">'Province'</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"一共包含 {} 个省份，分别是:\n{}"</span><span class="token punctuation">.</span><span class="token builtin">format</span><span class="token punctuation">(</span><span class="token builtin">len</span><span class="token punctuation">(</span>prov_list<span class="token punctuation">)</span><span class="token punctuation">,</span>prov_list<span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre>
+<pre><code>一共包含 50 个省份，分别是:
+['' 'Addu Atoll' 'Ash Shariqah' 'Barcelona' 'Burgenland' 'Chiang Mai'
+ 'Dubai' 'Dubayy' 'Florida' 'Hamburg' 'Kyoto-fu' 'Leiden' 'Leipzig'
+ 'Madrid' 'North Ari Atoll' 'North Shore' 'Parana' 'Paris' 'Queensland'
+ 'Sai Kung' 'Schaffhausen' 'Toronto' 'Umm al Qaiwain' 'Victoria' '上海' '云南'
+ '北京' '吉林' '四川' '天津' '安徽' '山东' '山西' '广东' '新疆' '江苏' '河北' '河南' '浙江' '湖北'
+ '湖南' '澳门' '甘肃' '福建' '西藏' '贵州' '辽宁' '重庆' '陕西' '黑龙江']
+</code></pre>
+<pre><code class="prism language-python">Province <span class="token operator">=</span> <span class="token punctuation">[</span>prov <span class="token keyword">for</span> prov <span class="token keyword">in</span> Province <span class="token keyword">if</span> <span class="token builtin">str</span><span class="token punctuation">(</span>prov<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token string">''</span><span class="token punctuation">]</span>
+new_list2 <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token keyword">for</span> prov <span class="token keyword">in</span> Province<span class="token punctuation">:</span>
+    new_list2<span class="token punctuation">.</span>append<span class="token punctuation">(</span>prov<span class="token punctuation">)</span>
+
+<span class="token keyword">from</span> collections <span class="token keyword">import</span> Counter
+sum_province <span class="token operator">=</span> Counter<span class="token punctuation">(</span>new_list2<span class="token punctuation">)</span>        
+x2<span class="token punctuation">,</span> y2 <span class="token operator">=</span> pyecharts<span class="token punctuation">.</span>base<span class="token punctuation">.</span>Base<span class="token punctuation">.</span>cast<span class="token punctuation">(</span>sum_province<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>x2<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>y2<span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>sum_province<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>['Addu Atoll', 'Ash Shariqah', 'Barcelona', 'Burgenland', 'Chiang Mai', 'Dubai', 'Dubayy', 'Florida', 'Hamburg', 'Kyoto-fu', 'Leiden', 'Leipzig', 'Madrid', 'North Ari Atoll', 'North Shore', 'Parana', 'Paris', 'Queensland', 'Sai Kung', 'Schaffhausen', 'Toronto', 'Umm al Qaiwain', 'Victoria', '上海', '云南', '北京', '吉林', '四川', '天津', '安徽', '山东', '山西', '广东', '新疆', '江苏', '河北', '河南', '浙江', '湖北', '湖南', '澳门', '甘肃', '福建', '西藏', '贵州', '辽宁', '重庆', '陕西', '黑龙江']
+[1, 1, 2, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 24, 1, 1, 2, 4, 2, 4, 10, 1, 4, 50, 46, 5, 3, 49, 1, 1, 2, 1, 1, 3, 1, 3, 1]
+Counter({'河北': 50, '湖南': 49, '河南': 46, '北京': 24, '广东': 10, '浙江': 5, '山西': 4, '安徽': 4, '江苏': 4, '上海': 4, '辽宁': 3, '陕西': 3, '湖北': 3, 'Dubayy': 3, '山东': 2, '天津': 2, 'Barcelona': 2, 'Paris': 2, '福建': 2, 'Umm al Qaiwain': 1, '吉林': 1, 'Sai Kung': 1, 'Victoria': 1, '贵州': 1, '黑龙江': 1, 'Leipzig': 1, '澳门': 1, '四川': 1, 'Parana': 1, 'Queensland': 1, '西藏': 1, '新疆': 1, 'Florida': 1, 'Dubai': 1, 'Kyoto-fu': 1, 'Addu Atoll': 1, 'Chiang Mai': 1, '重庆': 1, 'Burgenland': 1, 'Schaffhausen': 1, 'North Ari Atoll': 1, '云南': 1, 'Hamburg': 1, '甘肃': 1, 'Madrid': 1, 'Leiden': 1, 'Toronto': 1, 'North Shore': 1, 'Ash Shariqah': 1})
+</code></pre>
+<pre><code class="prism language-python"><span class="token comment"># 省份分布柱状图</span>
+bar <span class="token operator">=</span> Bar<span class="token punctuation">(</span><span class="token string">"Bar chart"</span><span class="token punctuation">,</span> <span class="token string">"Provinces distribution"</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"province"</span><span class="token punctuation">,</span> x2<span class="token punctuation">,</span> y2<span class="token punctuation">,</span> mark_line<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"average"</span><span class="token punctuation">]</span><span class="token punctuation">,</span> mark_point<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"max"</span><span class="token punctuation">,</span> <span class="token string">"min"</span><span class="token punctuation">]</span><span class="token punctuation">,</span>is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"Province.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">"Province.html"</span><span class="token punctuation">,</span><span class="token string">"Province.gif"</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320214930533.gif" alt="省份分布柱状图"></p>
+<pre><code class="prism language-python"><span class="token comment">#朋友圈省份分布地图</span>
+<span class="token builtin">map</span> <span class="token operator">=</span> Map<span class="token punctuation">(</span><span class="token string">"朋友圈省份分布"</span><span class="token punctuation">,</span> width<span class="token operator">=</span><span class="token number">1200</span><span class="token punctuation">,</span> height<span class="token operator">=</span><span class="token number">600</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"省份"</span><span class="token punctuation">,</span> x2<span class="token punctuation">,</span> y2<span class="token punctuation">,</span> maptype<span class="token operator">=</span><span class="token string">'china'</span><span class="token punctuation">,</span> is_visualmap<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> visual_text_color<span class="token operator">=</span><span class="token string">'#000'</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>show_config<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"Province3.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">"Province3.html"</span><span class="token punctuation">,</span><span class="token string">"Province3.gif"</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320215012584.gif" alt="朋友圈省份分布图"></p>
+<pre><code class="prism language-python"><span class="token comment">#选出分布超过3人的省份,并画出柱状图</span>
+wanted_keys <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token string">'河南'</span><span class="token punctuation">,</span><span class="token string">'河北'</span><span class="token punctuation">,</span><span class="token string">'湖南'</span><span class="token punctuation">,</span><span class="token string">'长沙'</span><span class="token punctuation">,</span><span class="token string">'北京'</span><span class="token punctuation">,</span><span class="token string">'广东'</span><span class="token punctuation">,</span><span class="token string">'湖北'</span><span class="token punctuation">,</span><span class="token string">'山西'</span><span class="token punctuation">,</span><span class="token string">'安徽'</span><span class="token punctuation">,</span><span class="token string">'上海'</span><span class="token punctuation">)</span>
+new_province <span class="token operator">=</span> dictfilt<span class="token punctuation">(</span>sum_province<span class="token punctuation">,</span> wanted_keys<span class="token punctuation">)</span>
+x3<span class="token punctuation">,</span> y3 <span class="token operator">=</span> pyecharts<span class="token punctuation">.</span>base<span class="token punctuation">.</span>Base<span class="token punctuation">.</span>cast<span class="token punctuation">(</span>new_province<span class="token punctuation">)</span>
+
+bar <span class="token operator">=</span> Bar<span class="token punctuation">(</span><span class="token string">"Bar chart"</span><span class="token punctuation">,</span> <span class="token string">"Provinces of more than three people"</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"province"</span><span class="token punctuation">,</span> x3<span class="token punctuation">,</span> y3<span class="token punctuation">,</span> mark_line<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"average"</span><span class="token punctuation">]</span><span class="token punctuation">,</span> mark_point<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">"max"</span><span class="token punctuation">,</span> <span class="token string">"min"</span><span class="token punctuation">]</span><span class="token punctuation">,</span>is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+bar<span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"Provinces2.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">"Provinces2.html"</span><span class="token punctuation">,</span><span class="token string">"Provinces2.gif"</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320215053363.gif" alt="分布超过三人的省份柱状图"></p>
+<p>由上图可知，笔者在河北、河南、湖南这三地的朋友最多</p>
+<pre><code class="prism language-python"><span class="token comment">#朋友圈分布超过3人省份分布地图</span>
+<span class="token builtin">map</span> <span class="token operator">=</span> Map<span class="token punctuation">(</span><span class="token string">"朋友圈分布超过3人省份分布"</span><span class="token punctuation">,</span> width<span class="token operator">=</span><span class="token number">1200</span><span class="token punctuation">,</span> height<span class="token operator">=</span><span class="token number">600</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>add<span class="token punctuation">(</span><span class="token string">"省份"</span><span class="token punctuation">,</span> x3<span class="token punctuation">,</span> y3<span class="token punctuation">,</span> maptype<span class="token operator">=</span><span class="token string">'china'</span><span class="token punctuation">,</span> is_visualmap<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> is_label_show<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> visual_text_color<span class="token operator">=</span><span class="token string">'#000'</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>show_config<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token builtin">map</span><span class="token punctuation">.</span>render<span class="token punctuation">(</span><span class="token string">"Province4.html"</span><span class="token punctuation">)</span>
+
+make_a_snapshot<span class="token punctuation">(</span><span class="token string">"Province4.html"</span><span class="token punctuation">,</span><span class="token string">"Province4.gif"</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320215134611.gif" alt="朋友圈分布超过3人省份分布"></p>
+<pre><code class="prism language-python"><span class="token keyword">print</span><span class="token punctuation">(</span>x3<span class="token punctuation">,</span>y3<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>['上海', '北京', '安徽', '山西', '广东', '河北', '河南', '湖北', '湖南'] [4, 24, 4, 4, 10, 50, 46, 3, 49]
+</code></pre>
+<h2><a id="_385"></a>用微信个性签名创建词云</h2>
+<pre><code class="prism language-python"><span class="token comment">#替换特殊字符，清洗中文词库，得到text</span>
+<span class="token keyword">import</span> re
+siglist <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token keyword">for</span> i <span class="token keyword">in</span> friends<span class="token punctuation">:</span>
+    signature <span class="token operator">=</span> i<span class="token punctuation">[</span><span class="token string">"Signature"</span><span class="token punctuation">]</span><span class="token punctuation">.</span>strip<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>replace<span class="token punctuation">(</span><span class="token string">"span"</span><span class="token punctuation">,</span><span class="token string">""</span><span class="token punctuation">)</span><span class="token punctuation">.</span>replace<span class="token punctuation">(</span><span class="token string">"class"</span><span class="token punctuation">,</span><span class="token string">""</span><span class="token punctuation">)</span><span class="token punctuation">.</span>replace<span class="token punctuation">(</span><span class="token string">"emoji"</span><span class="token punctuation">,</span><span class="token string">""</span><span class="token punctuation">)</span>
+    rep <span class="token operator">=</span> re<span class="token punctuation">.</span><span class="token builtin">compile</span><span class="token punctuation">(</span><span class="token string">"1f\d+\w*|[&lt;&gt;/=]"</span><span class="token punctuation">)</span>
+    signature <span class="token operator">=</span> rep<span class="token punctuation">.</span>sub<span class="token punctuation">(</span><span class="token string">""</span><span class="token punctuation">,</span> signature<span class="token punctuation">)</span>
+    siglist<span class="token punctuation">.</span>append<span class="token punctuation">(</span>signature<span class="token punctuation">)</span>
+text <span class="token operator">=</span> <span class="token string">""</span><span class="token punctuation">.</span>join<span class="token punctuation">(</span>siglist<span class="token punctuation">)</span>
+</code></pre>
+<pre><code class="prism language-python"><span class="token keyword">import</span> jieba
+wordlist <span class="token operator">=</span> jieba<span class="token punctuation">.</span>cut<span class="token punctuation">(</span>text<span class="token punctuation">,</span> cut_all<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+word_space_split <span class="token operator">=</span> <span class="token string">" "</span><span class="token punctuation">.</span>join<span class="token punctuation">(</span>wordlist<span class="token punctuation">)</span>
+</code></pre>
+<pre><code>Building prefix dict from the default dictionary ...
+DEBUG:jieba:Building prefix dict from the default dictionary ...
+Loading model from cache C:\Users\dell\AppData\Local\Temp\jieba.cache
+DEBUG:jieba:Loading model from cache C:\Users\dell\AppData\Local\Temp\jieba.cache
+Loading model cost 2.780 seconds.
+DEBUG:jieba:Loading model cost 2.780 seconds.
+Prefix dict has been built succesfully.
+DEBUG:jieba:Prefix dict has been built succesfully.
+</code></pre>
+<pre><code class="prism language-python"><span class="token keyword">import</span> matplotlib<span class="token punctuation">.</span>pyplot <span class="token keyword">as</span> plt
+<span class="token keyword">from</span> wordcloud <span class="token keyword">import</span> WordCloud<span class="token punctuation">,</span> ImageColorGenerator
+<span class="token keyword">import</span> numpy <span class="token keyword">as</span> np
+<span class="token keyword">import</span> PIL<span class="token punctuation">.</span>Image <span class="token keyword">as</span> Image
+
+coloring <span class="token operator">=</span> np<span class="token punctuation">.</span>array<span class="token punctuation">(</span>Image<span class="token punctuation">.</span><span class="token builtin">open</span><span class="token punctuation">(</span><span class="token string">"D:/qjj/Jupyter_Projects/wechat/cat3.png"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+my_wordcloud <span class="token operator">=</span> WordCloud<span class="token punctuation">(</span>background_color<span class="token operator">=</span><span class="token string">"white"</span><span class="token punctuation">,</span> max_words<span class="token operator">=</span><span class="token number">2000</span><span class="token punctuation">,</span>
+                         mask<span class="token operator">=</span>coloring<span class="token punctuation">,</span> max_font_size<span class="token operator">=</span><span class="token number">50</span><span class="token punctuation">,</span> random_state<span class="token operator">=</span><span class="token number">42</span><span class="token punctuation">,</span> scale<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">,</span>
+                         font_path<span class="token operator">=</span><span class="token string">"D:/qjj/Jupyter_Projects/fonts/STHeiti Light.ttc"</span><span class="token punctuation">)</span><span class="token punctuation">.</span>generate<span class="token punctuation">(</span>word_space_split<span class="token punctuation">)</span>
+
+image_colors <span class="token operator">=</span> ImageColorGenerator<span class="token punctuation">(</span>coloring<span class="token punctuation">)</span>
+plt<span class="token punctuation">.</span>imshow<span class="token punctuation">(</span>my_wordcloud<span class="token punctuation">.</span>recolor<span class="token punctuation">(</span>color_func<span class="token operator">=</span>image_colors<span class="token punctuation">)</span><span class="token punctuation">)</span>
+plt<span class="token punctuation">.</span>imshow<span class="token punctuation">(</span>my_wordcloud<span class="token punctuation">)</span>
+plt<span class="token punctuation">.</span>axis<span class="token punctuation">(</span><span class="token string">"off"</span><span class="token punctuation">)</span>
+plt<span class="token punctuation">.</span>show<span class="token punctuation">(</span><span class="token punctuation">)</span>
+my_wordcloud<span class="token punctuation">.</span>to_file<span class="token punctuation">(</span><span class="token string">"D:/qjj/Jupyter_Projects/wechat/my_wordcloud3.png"</span><span class="token punctuation">)</span>
+</code></pre>
+<p><img src="https://img-blog.csdnimg.cn/20190320215210761.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl8zOTQ5MDk4Mw==,size_16,color_FFFFFF,t_70" alt="朋友圈个签词云"><br>
+根据朋友圈的个性签名生成词云，字体越大表示出现的频率越大，“时间”、“人生”、“自己”、“工作”都是频率比较大的词汇，看来朋友们比较关注自身生活和工作状态，关注时间。</p>
+</div>
+</body>
+
+</html>
